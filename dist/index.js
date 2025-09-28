@@ -1,4 +1,4 @@
-var __defProp = Object.defineProperty; // trigger here
+var __defProp = Object.defineProperty;
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -884,6 +884,7 @@ var vite_config_default = defineConfig({
       )
     ] : []
   ],
+  base: "/Smart-Tracker/",
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
