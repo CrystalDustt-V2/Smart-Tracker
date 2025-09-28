@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useTheme } from "@/lib/theme-context";
+import { useAuth } from "@/hooks/useAuth";
 import { 
   Moon, 
   Sun, 
@@ -11,18 +12,31 @@ import {
   Cloud, 
   Shirt, 
   Settings,
-  AlertTriangle 
+  AlertTriangle,
+  LogOut
 } from "lucide-react";
-import { useState } from "react";
 
-export function Navigation() {
+interface NavigationProps {
+  showLoginButton?: boolean;
+}
+
+export function Navigation({ showLoginButton = false }: NavigationProps) {
   const [location] = useLocation();
   const { theme, toggleTheme } = useTheme();
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // todo: remove mock functionality
+  const { isAuthenticated, user, isLoading } = useAuth();
 
   const isActive = (path: string) => location === path;
 
-  if (!isLoggedIn && location !== "/" && location !== "/login" && location !== "/register") {
+  const handleLogin = () => {
+    window.location.href = "/api/login";
+  };
+
+  const handleLogout = () => {
+    window.location.href = "/api/logout";
+  };
+
+  // Don't show navigation on loading
+  if (isLoading) {
     return null;
   }
 
@@ -42,7 +56,7 @@ export function Navigation() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-4">
-            {isLoggedIn ? (
+            {isAuthenticated ? (
               <>
                 <Link href="/dashboard" data-testid="link-dashboard">
                   <Button 
@@ -55,54 +69,36 @@ export function Navigation() {
                   </Button>
                 </Link>
 
-                <Link href="/weather" data-testid="link-weather">
+                <Link href="/profile" data-testid="link-profile">
                   <Button 
-                    variant={isActive("/weather") ? "secondary" : "ghost"}
+                    variant={isActive("/profile") ? "secondary" : "ghost"}
                     size="sm"
                     className="gap-2"
                   >
-                    <Cloud className="h-4 w-4" />
-                    Weather
-                  </Button>
-                </Link>
-
-                <Link href="/activities" data-testid="link-activities">
-                  <Button 
-                    variant={isActive("/activities") ? "secondary" : "ghost"}
-                    size="sm"
-                    className="gap-2"
-                  >
-                    <Activity className="h-4 w-4" />
-                    Activities
-                    <Badge variant="destructive" className="ml-1">2</Badge>
-                  </Button>
-                </Link>
-
-                <Link href="/outfit" data-testid="link-outfit">
-                  <Button 
-                    variant={isActive("/outfit") ? "secondary" : "ghost"}
-                    size="sm"
-                    className="gap-2"
-                  >
-                    <Shirt className="h-4 w-4" />
-                    WeatherFit
+                    <Settings className="h-4 w-4" />
+                    Profile
                   </Button>
                 </Link>
               </>
-            ) : (
+            ) : showLoginButton ? (
               <>
-                <Link href="/login" data-testid="link-login">
-                  <Button variant="ghost" size="sm">
-                    Sign In
-                  </Button>
-                </Link>
-                <Link href="/register" data-testid="link-register">
-                  <Button size="sm">
-                    Get Started
-                  </Button>
-                </Link>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleLogin}
+                  data-testid="button-login"
+                >
+                  Sign In
+                </Button>
+                <Button 
+                  size="sm"
+                  onClick={handleLogin}
+                  data-testid="button-get-started"
+                >
+                  Get Started
+                </Button>
               </>
-            )}
+            ) : null}
 
             {/* Theme Toggle */}
             <Button
@@ -119,7 +115,7 @@ export function Navigation() {
             </Button>
 
             {/* User Profile */}
-            {isLoggedIn && (
+            {isAuthenticated && (
               <div className="flex items-center space-x-3">
                 <Button 
                   variant="ghost" 
@@ -129,13 +125,22 @@ export function Navigation() {
                 >
                   <AlertTriangle className="h-4 w-4" />
                 </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleLogout}
+                  data-testid="button-logout"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
                 
-                <Link href="/profile" data-testid="link-profile">
-                  <Avatar className="h-8 w-8 hover-elevate cursor-pointer">
-                    <AvatarImage src="" alt="User" />
-                    <AvatarFallback>JD</AvatarFallback>
-                  </Avatar>
-                </Link>
+                <Avatar className="h-8 w-8 hover-elevate cursor-pointer" data-testid="avatar-user">
+                  <AvatarImage src={user?.profileImageUrl || ""} alt="User" />
+                  <AvatarFallback>
+                    {user?.firstName?.[0]}{user?.lastName?.[0]}
+                  </AvatarFallback>
+                </Avatar>
               </div>
             )}
           </div>

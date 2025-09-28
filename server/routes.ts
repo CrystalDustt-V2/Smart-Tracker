@@ -12,6 +12,7 @@ import {
   insertEmergencyContactSchema,
   insertEmergencyAlertSchema,
 } from "@shared/schema";
+import { z } from "zod";
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -45,12 +46,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/user/preferences', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const preferences = req.body;
+      
+      // Validate preferences with Zod schema
+      const preferencesSchema = z.object({
+        notifications: z.boolean(),
+        locationSharing: z.boolean(),
+        emergencyMode: z.boolean(),
+        weatherAlerts: z.boolean(),
+        activityReminders: z.boolean(),
+      });
+      
+      const preferences = preferencesSchema.parse(req.body);
       const user = await storage.updateUserPreferences(userId, preferences);
       res.json(user);
     } catch (error) {
       console.error("Error updating preferences:", error);
-      res.status(500).json({ message: "Failed to update preferences" });
+      res.status(400).json({ message: "Failed to update preferences" });
     }
   });
 
@@ -81,19 +92,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/devices/:deviceId/status', isAuthenticated, async (req: any, res) => {
     try {
       const { deviceId } = req.params;
-      const { isOnline, batteryLevel } = req.body;
+      
+      // Verify device ownership
+      const devices = await storage.getDevicesByUser(req.user.claims.sub);
+      const device = devices.find(d => d.id === deviceId);
+      if (!device) {
+        return res.status(403).json({ message: "Device not found or access denied" });
+      }
+      
+      // Validate request body
+      const deviceStatusSchema = z.object({
+        isOnline: z.boolean(),
+        batteryLevel: z.number().min(0).max(100).optional(),
+      });
+      
+      const { isOnline, batteryLevel } = deviceStatusSchema.parse(req.body);
       await storage.updateDeviceStatus(deviceId, isOnline, batteryLevel);
       res.json({ success: true });
     } catch (error) {
       console.error("Error updating device status:", error);
-      res.status(500).json({ message: "Failed to update device status" });
+      res.status(400).json({ message: "Failed to update device status" });
     }
   });
 
   // Location tracking routes
-  app.post('/api/locations', async (req, res) => {
+  app.post('/api/locations', isAuthenticated, async (req: any, res) => {
     try {
       const locationData = insertLocationSchema.parse(req.body);
+      
+      // Verify device ownership
+      const devices = await storage.getDevicesByUser(req.user.claims.sub);
+      const device = devices.find(d => d.id === locationData.deviceId);
+      if (!device) {
+        return res.status(403).json({ message: "Device not found or access denied" });
+      }
+      
       const location = await storage.addLocation(locationData);
       
       // Broadcast location update via WebSocket
@@ -112,6 +145,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/devices/:deviceId/location', isAuthenticated, async (req: any, res) => {
     try {
       const { deviceId } = req.params;
+      
+      // Verify device ownership
+      const devices = await storage.getDevicesByUser(req.user.claims.sub);
+      const device = devices.find(d => d.id === deviceId);
+      if (!device) {
+        return res.status(403).json({ message: "Device not found or access denied" });
+      }
+      
       const location = await storage.getLatestLocation(deviceId);
       if (!location) {
         return res.status(404).json({ message: "No location found" });
@@ -126,6 +167,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/devices/:deviceId/location-history', isAuthenticated, async (req: any, res) => {
     try {
       const { deviceId } = req.params;
+      
+      // Verify device ownership
+      const devices = await storage.getDevicesByUser(req.user.claims.sub);
+      const device = devices.find(d => d.id === deviceId);
+      if (!device) {
+        return res.status(403).json({ message: "Device not found or access denied" });
+      }
+      
       const limit = parseInt(req.query.limit as string) || 50;
       const locations = await storage.getLocationHistory(deviceId, limit);
       res.json(locations);
@@ -136,9 +185,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Weather data routes
-  app.post('/api/weather', async (req, res) => {
+  app.post('/api/weather', isAuthenticated, async (req: any, res) => {
     try {
       const weatherData = insertWeatherDataSchema.parse(req.body);
+      
+      // Verify device ownership
+      const devices = await storage.getDevicesByUser(req.user.claims.sub);
+      const device = devices.find(d => d.id === weatherData.deviceId);
+      if (!device) {
+        return res.status(403).json({ message: "Device not found or access denied" });
+      }
+      
       const weather = await storage.addWeatherData(weatherData);
       
       // Broadcast weather update via WebSocket
@@ -157,6 +214,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/devices/:deviceId/weather', isAuthenticated, async (req: any, res) => {
     try {
       const { deviceId } = req.params;
+      
+      // Verify device ownership
+      const devices = await storage.getDevicesByUser(req.user.claims.sub);
+      const device = devices.find(d => d.id === deviceId);
+      if (!device) {
+        return res.status(403).json({ message: "Device not found or access denied" });
+      }
+      
       const weather = await storage.getLatestWeather(deviceId);
       if (!weather) {
         return res.status(404).json({ message: "No weather data found" });
